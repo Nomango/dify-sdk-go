@@ -3,19 +3,19 @@ package test
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"log"
-	"strings"
 	"testing"
 
 	"github.com/langgenius/dify-sdk-go"
 )
 
 var (
-	host         = "这里填写你的host"
-	apiSecretKey = "这里填写你的api secret key"
+	host         = "https://dify.labex.dev"
+	apiSecretKey = "app-JjNGGcKRFxgLu6Kfg4tIALDl"
 )
 
-func TestApi3(t *testing.T) {
+func TestAPI(t *testing.T) {
 	var c = &dify.ClientConfig{
 		Host:         host,
 		ApiSecretKey: apiSecretKey,
@@ -24,41 +24,32 @@ func TestApi3(t *testing.T) {
 
 	ctx := context.Background()
 
-	var (
-		ch  = make(chan dify.ChatMessageStreamChannelResponse)
-		err error
-	)
-
-	ch, err = client.Api().ChatMessagesStream(ctx, &dify.ChatMessageRequest{
+	stream, err := client.Api().ChatMessagesStream(ctx, &dify.ChatMessageRequest{
 		Query: "你是谁?",
-		User:  "这里换成你创建的",
+		User:  "user-123",
 	})
 	if err != nil {
 		t.Fatal(err.Error())
 	}
+	defer stream.Close()
 
-	var (
-		strBuilder strings.Builder
-		cId        string
-	)
 	for {
 		select {
 		case <-ctx.Done():
-			t.Log("ctx.Done", strBuilder.String())
+			t.Fatal(ctx.Err())
 			return
-		case r, isOpen := <-ch:
-			if !isOpen {
-				goto done
+		default:
+			resp, err := stream.Recv()
+			if err != nil {
+				if err == io.EOF {
+					return
+				}
+				t.Fatal(err.Error())
 			}
-			strBuilder.WriteString(r.Answer)
-			cId = r.ConversationID
-			log.Println("Answer2", r.Answer, r.ConversationID, cId, r.ID, r.TaskID)
+			content, _ := json.Marshal(resp)
+			log.Println("Event", string(content))
 		}
 	}
-
-done:
-	t.Log(strBuilder.String())
-	t.Log(cId)
 }
 
 func TestMessages(t *testing.T) {
